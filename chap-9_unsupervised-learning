@@ -1,0 +1,71 @@
+from sklearn import datasets
+from sklearn.cluster import KMeans
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.decomposition import PCA
+import os, ssl
+if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
+    getattr(ssl, '_create_unverified_context', None)):
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+class kmeans():
+    X_digits, y_digits = datasets.load_digits(return_X_y=True)
+    X_train, X_test, y_train, y_test = train_test_split(X_digits, y_digits, test_size=0.2)
+
+    pipeline = Pipeline([
+            ("kmeans", KMeans(n_clusters=70)),
+            ("logreg", LogisticRegression(max_iter=10000))
+        ])
+
+    def log_reg_only(self):
+        log_reg = LogisticRegression(max_iter=10000)
+        log_reg.fit(X_train, y_train)
+        print(log_reg.score(X_test, y_test))
+
+    def kmeans_log_reg(self):
+        self.pipeline.fit(X_train, y_train)
+        print(self.pipeline.score(X_test, y_test))
+
+    def grid_search_kmeans_log_reg(self):
+        param_grid = dict(kmeans__n_clusters=range(50, 100, 5), logreg__max_iter=range(1000,10000,2000))
+        grid_search_clf = GridSearchCV(self.pipeline, param_grid, cv=3, verbose=2, n_jobs=4)
+        grid_search_clf.fit(X_train, y_train)
+
+        grid_search_pipeline = Pipeline([
+            ("kmeans", KMeans(n_clusters=grid_search_clf.best_params_.get('kmeans__n_clusters'))),
+            ("logistic regression", LogisticRegression(max_iter=grid_search_clf.best_params_.get('logreg__max_iter')))
+        ])
+        grid_search_pipeline.fit(X_train, y_train)
+        print(grid_search_pipeline.score(X_test, y_test))
+
+olivetti_data = datasets.fetch_olivetti_faces()
+
+print(olivetti_data.DESCR)
+
+strat_split = StratifiedShuffleSplit(n_splits=1, test_size=40, random_state=42)
+train_valid_idx, test_idx = next(strat_split.split(olivetti_data.data, olivetti_data.target))
+X_train_valid = olivetti_data.data[train_valid_idx]
+y_train_valid = olivetti_data.target[train_valid_idx]
+X_test = olivetti_data.data[test_idx]
+y_test = olivetti_data.target[test_idx]
+
+strat_split = StratifiedShuffleSplit(n_splits=1, test_size=80, random_state=42)
+train_idx, valid_idx = next(strat_split.split(X_train_valid, y_train_valid))
+X_train = olivetti_data.data[train_idx]
+y_train = olivetti_data.target[train_idx]
+X_valid = olivetti_data.data[valid_idx]
+y_valid = olivetti_data.target[valid_idx]
+
+pca = PCA(0.99)
+x_train_pca = pca.fit_transform(X_train)
+x_valid_pca = pca.fit_transform(X_valid)
+x_test_pca = pca.fit_transform(X_test)
+
+k_range = range(5,50,5)
+k_means_per_k = []
+for k in k_range:
+    print("K={}".format(k))
+    kmeans = KMeans(n_clusters=k, random_state=42).fit(X_train)
+    k_means_per_k.append(kmeans)
